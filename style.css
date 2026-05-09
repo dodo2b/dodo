@@ -1,0 +1,17 @@
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+    background-color: #050A18;
+}
+
+canvas {
+    border: 4px solid #00bfff;
+    border-radius: 12px;
+    box-shadow: 0 0 24px rgba(0, 191, 255, 0.25);
+    cursor: pointer;
+    background-color: #87CEEB;
+    display: block;
+}
