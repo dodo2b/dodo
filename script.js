@@ -1,6 +1,6 @@
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-ctx.imageSmoothingEnabled = true;
+ctx.imageSmoothingEnabled = false;
 
 const states = {
     day: 0,
@@ -11,6 +11,14 @@ const states = {
 
 let currentState = states.day;
 let animationProgress = 0;
+
+let zzzAnimationStartTime = 0;
+const zzzAnimationDuration = 2000; // Durée d'une animation Zzz (en ms)
+const zzzInterval = 3000; // Intervalle entre l'apparition de nouveaux Zzz (en ms)
+
+let clouds = [];
+const cloudSpeed = 0.5; // pixels par frame
+const cloudPixelSize = 20; // Taille de base d'un "pixel" de nuage
 
 const canvasWidth = canvas.width;
 const canvasHeight = canvas.height;
@@ -71,26 +79,26 @@ function drawSunMoon() {
             : moonStartY;
 
     if (currentState === states.day || currentState === states.transitioningToNight) {
-        // Much bigger sun
+        // Énorme soleil pixelisé
         ctx.fillStyle = '#FFFF00';
-        ctx.fillRect(sunX - 25, sunY - 25, 50, 50);
-        // More rays
-        ctx.fillRect(sunX - 40, sunY - 5, 15, 10);
-        ctx.fillRect(sunX + 25, sunY - 5, 15, 10);
-        ctx.fillRect(sunX - 5, sunY - 40, 10, 15);
-        ctx.fillRect(sunX - 5, sunY + 25, 10, 15);
-        ctx.fillRect(sunX - 30, sunY - 30, 15, 10);
-        ctx.fillRect(sunX + 15, sunY - 30, 15, 10);
-        ctx.fillRect(sunX - 30, sunY + 20, 15, 10);
-        ctx.fillRect(sunX + 15, sunY + 20, 15, 10);
+        ctx.fillRect(sunX - 60, sunY - 60, 120, 120);
+        // Rayons massifs
+        ctx.fillRect(sunX - 110, sunY - 10, 40, 20);
+        ctx.fillRect(sunX + 70, sunY - 10, 40, 20);
+        ctx.fillRect(sunX - 10, sunY - 110, 20, 40);
+        ctx.fillRect(sunX - 10, sunY + 70, 20, 40);
+        ctx.fillRect(sunX - 90, sunY - 90, 30, 30);
+        ctx.fillRect(sunX + 60, sunY - 90, 30, 30);
+        ctx.fillRect(sunX - 90, sunY + 60, 30, 30);
+        ctx.fillRect(sunX + 60, sunY + 60, 30, 30);
     }
 
     if (currentState === states.night || currentState === states.transitioningToDay) {
-        // Much bigger crescent moon
+        // Énorme lune en croissant
         ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(moonX - 40, moonY - 40, 80, 80);
+        ctx.fillRect(moonX - 70, moonY - 70, 140, 140);
         ctx.fillStyle = '#0B1437';
-        ctx.fillRect(moonX - 10, moonY - 30, 40, 60);
+        ctx.fillRect(moonX - 30, moonY - 60, 110, 120);
 
         // More stars, less geometric
         ctx.fillStyle = '#FFFFFF';
@@ -114,40 +122,88 @@ function drawGround() {
     for (let i = 0; i < canvasWidth; i += 20) {
         ctx.fillRect(i, 580, 20, 20);
     }
+
+    // Rajout de brins d'herbe pixelisés pour donner du relief
+    for (let i = 0; i < canvasWidth; i += 40) {
+        ctx.fillRect(i + 5, 560, 10, 20); // Brins hauts
+        ctx.fillRect(i + 25, 570, 8, 10);  // Brins moyens
+        ctx.fillRect(i + 18, 565, 5, 15);  // Brins fins
+    }
 }
 
 function drawBed() {
-    const bedX = 250;
-    const bedY = 350;
-    const bedWidth = 400;
-    const bedHeight = 200;
+    const bedX = 500; // Plus proche du centre
+    const bedY = 320; 
+    const bedWidth = 160; // Un peu plus large
+    const bedHeight = 260; // Hauteur pour arriver au sol
 
-    // Bed frame
+    // Cadre en bois vertical
     ctx.fillStyle = '#8B4513';
-    ctx.fillRect(bedX, bedY, bedWidth, 20);
-    ctx.fillRect(bedX, bedY + bedHeight - 20, bedWidth, 20);
-    ctx.fillRect(bedX, bedY, 20, bedHeight);
-    ctx.fillRect(bedX + bedWidth - 20, bedY, 20, bedHeight);
+    ctx.fillRect(bedX, bedY, bedWidth, 25); // Tête de lit
+    ctx.fillRect(bedX, bedY + bedHeight - 15, bedWidth, 15); // Pied de lit
+    ctx.fillRect(bedX, bedY, 15, bedHeight); // Montant gauche
+    ctx.fillRect(bedX + bedWidth - 15, bedY, 15, bedHeight); // Montant droit
 
     // Mattress
     ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(bedX + 20, bedY + 20, bedWidth - 40, 60);
+    ctx.fillRect(bedX + 15, bedY + 20, bedWidth - 30, bedHeight - 35);
+    
+    // Coussins
+    ctx.fillStyle = '#F0F0F0';
+    ctx.fillRect(bedX + 30, bedY + 30, 45, 35);
+    ctx.fillRect(bedX + 85, bedY + 30, 45, 35);
 
-    // Pillows
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(bedX + 40, bedY + 30, 60, 30);
-    ctx.fillRect(bedX + bedWidth - 100, bedY + 30, 60, 30);
-
-    // Blanket
+    // Couette (Visible jour et nuit)
     ctx.fillStyle = '#0000FF';
-    ctx.fillRect(bedX + 20, bedY + 80, bedWidth - 40, 100);
+    ctx.fillRect(bedX + 15, bedY + 110, bedWidth - 30, bedHeight - 125);
+}
+
+// Fonction pour initialiser les nuages
+function initClouds() {
+    // Chaque nuage est défini par sa position (x, y) et une série de "blocs" relatifs à cette position.
+    // Les blocs sont (dx, dy, largeur_en_pixels, hauteur_en_pixels)
+    clouds.push({ x: 100, y: 80, blocks: [
+        { dx: 0, dy: 0, w: 3, h: 2 },
+        { dx: 1, dy: 2, w: 2, h: 1 },
+        { dx: 3, dy: 1, w: 1, h: 1 }
+    ]});
+    clouds.push({ x: 450, y: 150, blocks: [
+        { dx: 0, dy: 1, w: 2, h: 1 },
+        { dx: 1, dy: 0, w: 3, h: 2 },
+        { dx: 3, dy: 1, w: 1, h: 1 }
+    ]});
+    clouds.push({ x: 700, y: 100, blocks: [
+        { dx: 0, dy: 0, w: 4, h: 2 },
+        { dx: 1, dy: 2, w: 2, h: 1 }
+    ]});
+    // Ajoute un nuage qui commence hors écran à droite pour un défilement continu
+    clouds.push({ x: canvasWidth + 50, y: 130, blocks: [
+        { dx: 0, dy: 1, w: 2, h: 1 },
+        { dx: 1, dy: 0, w: 3, h: 2 },
+        { dx: 3, dy: 1, w: 1, h: 1 }
+    ]});
+}
+
+// Fonction pour dessiner les nuages
+function drawClouds() {
+    if (currentState === states.night || currentState === states.transitioningToNight) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'; // Blanc semi-transparent pour la nuit
+    } else {
+        ctx.fillStyle = '#FFFFFF'; // Blanc opaque pour le jour
+    }
+
+    for (const cloud of clouds) {
+        for (const block of cloud.blocks) {
+            ctx.fillRect(cloud.x + block.dx * cloudPixelSize, cloud.y + block.dy * cloudPixelSize, block.w * cloudPixelSize, block.h * cloudPixelSize);
+        }
+    }
 }
 
 function drawPerson() {
-    const startX = 170;
-    const startY = 300;
-    const bedX = 360;
-    const bedY = 400;
+    const startX = 100; 
+    const startY = 436; // Ajusté pour le nouveau p=8
+    const bedX = 540;   // Ajusté pour le nouveau lit
+    const bedY = 370;   
     let x = startX;
     let y = startY;
 
@@ -162,68 +218,124 @@ function drawPerson() {
     if (currentState === states.day || currentState === states.transitioningToDay) {
         const walkX = currentState === states.transitioningToDay ? startX + (1 - animationProgress) * (bedX - startX) : startX;
         const walkY = currentState === states.transitioningToDay ? startY + (1 - animationProgress) * (bedY - startY) : startY;
+        
+        const p = 8; // Perso plus grand
+        
+        // Cheveux courts
+        ctx.fillStyle = '#4A2D1F';
+        ctx.fillRect(walkX + p, walkY + p*2, p*10, p*5);
+        ctx.fillStyle = '#2A1D0F'; // Ombre cheveux
+        ctx.fillRect(walkX + p, walkY + p*4, p*2, p*3);
 
-        // Bigger hat
-        ctx.fillStyle = '#FF0000';
-        ctx.fillRect(walkX + 18, walkY + 9, 30, 15);
-        // Bigger face
-        ctx.fillStyle = '#FFD1A4';
-        ctx.fillRect(walkX + 21, walkY + 24, 24, 24);
-        // Eyes
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(walkX + 24, walkY + 27, 4, 4);
-        ctx.fillRect(walkX + 37, walkY + 27, 4, 4);
-        // Mustache
-        ctx.fillStyle = '#8B4513';
-        ctx.fillRect(walkX + 24, walkY + 39, 18, 4);
-        // Shirt
+        ctx.fillStyle = '#FF0000'; // Chapeau détaillé
+        ctx.fillRect(walkX + p*2, walkY, p*8, p*2);
+        ctx.fillRect(walkX + p*4, walkY - p*1.5, p*4, p*1.5);
+        
+        ctx.fillStyle = '#FFD1A4'; // Visage
+        ctx.fillRect(walkX + p*3, walkY + p*2, p*6, p*6);
+        
+        ctx.fillStyle = '#000000'; // Yeux
+        ctx.fillRect(walkX + p*4, walkY + p*3.5, p, p*1.5);
+        ctx.fillRect(walkX + p*7, walkY + p*3.5, p, p*1.5);
+        
+        ctx.fillStyle = '#8B4513'; // Moustache
+        ctx.fillRect(walkX + p*3.5, walkY + p*6.5, p*5, p);
+
+        // Corps
         ctx.fillStyle = '#0000FF';
-        ctx.fillRect(walkX + 15, walkY + 48, 36, 30);
-        // Arms (more pixelated)
+        ctx.fillRect(walkX + p*2, walkY + p*8, p*8, p*6);
+        ctx.fillStyle = '#FFFF00'; // Boutons
+        ctx.fillRect(walkX + p*5.5, walkY + p*9.5, p, p);
+        ctx.fillRect(walkX + p*5.5, walkY + p*12, p, p);
+
+        // Bras et Mains
+        ctx.fillStyle = '#0000FF';
+        ctx.fillRect(walkX + p*0.5, walkY + p*8, p*1.5, p*4);
+        ctx.fillRect(walkX + p*10, walkY + p*8, p*1.5, p*4);
         ctx.fillStyle = '#FFD1A4';
-        ctx.fillRect(walkX + 9, walkY + 54, 9, 24);
-        ctx.fillRect(walkX + 48, walkY + 54, 9, 24);
-        // Pants
-        ctx.fillStyle = '#8B4513';
-        ctx.fillRect(walkX + 18, walkY + 78, 12, 24);
-        ctx.fillRect(walkX + 36, walkY + 78, 12, 24);
-        // Shoes
-        ctx.fillStyle = '#8B4513';
-        ctx.fillRect(walkX + 15, walkY + 99, 15, 9);
-        ctx.fillRect(walkX + 36, walkY + 99, 15, 9);
+        ctx.fillRect(walkX + p*0.5, walkY + p*12, p*1.5, p*1.5);
+        ctx.fillRect(walkX + p*10, walkY + p*12, p*1.5, p*1.5);
+
+        // Pantalon et Chaussures
+        ctx.fillStyle = '#333333';
+        ctx.fillRect(walkX + p*2.5, walkY + p*14, p*3, p*2.5);
+        ctx.fillRect(walkX + p*6.5, walkY + p*14, p*3, p*2.5);
+        ctx.fillStyle = '#000000'; // Chaussures
+        ctx.fillRect(walkX + p*2, walkY + p*16.5, p*3.5, p);
+        ctx.fillRect(walkX + p*6.5, walkY + p*16.5, p*3.5, p);
     }
 
     if (currentState === states.night || currentState === states.transitioningToNight) {
-        // Only head sticking out, bigger
-        // Hat
-        ctx.fillStyle = '#FF0000';
-        ctx.fillRect(x + 18, y - 42, 30, 15);
-        // Face
-        ctx.fillStyle = '#FFD1A4';
-        ctx.fillRect(x + 21, y - 27, 24, 24);
-        // Eyes
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(x + 24, y - 24, 4, 4);
-        ctx.fillRect(x + 37, y - 24, 4, 4);
-        // Mustache
-        ctx.fillStyle = '#8B4513';
-        ctx.fillRect(x + 24, y - 6, 18, 4);
+        const p = 8;
+        // Tête sur l'oreiller
+        ctx.fillStyle = '#4A2D1F';
+        ctx.fillRect(x + p*2, y + p*2, p*8, p*3);
+        
+        ctx.fillStyle = '#FF0000'; // Chapeau rectifié (comme le jour)
+        ctx.fillRect(x + p*2, y + p*0.5, p*8, p*2);
+        ctx.fillRect(x + p*4, y - p, p*4, p*1.5);
 
-        // Blanket covering body, starting at face bottom
+        ctx.fillStyle = '#FFD1A4'; // Visage
+        ctx.fillRect(x + p*3, y + p*2.5, p*6, p*5);
+        ctx.fillStyle = '#000000'; // Yeux fermés
+        ctx.fillRect(x + p*4, y + p*4.5, p, p*0.5);
+        ctx.fillRect(x + p*7, y + p*4.5, p, p*0.5);
+        ctx.fillStyle = '#8B4513'; // Moustache
+        ctx.fillRect(x + p*3.5, y + p*6.5, p*5, p*0.8);
+
+        // Dessin de la couette par-dessus pour l'effet "sous le drap"
         ctx.fillStyle = '#0000FF';
-        ctx.fillRect(270, 400, 360, 120);
+        ctx.fillRect(515, 430, 130, 135);
+
+        // Animation Zzz
+        const currentTime = performance.now();
+
+        if (zzzAnimationStartTime === 0) {
+            // Initialise le temps de début de l'animation Zzz la première fois que la nuit arrive
+            zzzAnimationStartTime = currentTime;
+        }
+
+        const timeSinceLastZzzCycle = currentTime - zzzAnimationStartTime;
+
+        if (timeSinceLastZzzCycle >= zzzInterval) {
+            // Réinitialise pour un nouveau cycle Zzz
+            zzzAnimationStartTime = currentTime;
+        }
+
+        const zzzProgress = (currentTime - zzzAnimationStartTime) / zzzAnimationDuration;
+
+        if (zzzProgress >= 0 && zzzProgress <= 1) {
+            const alpha = 1 - zzzProgress; // S'estompe
+            const yOffset = -zzzProgress * 60; // Monte de 60 pixels
+            const zzzX = x + p * 10; 
+            const zzzY = y - p * 2 + yOffset;
+
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = '#FFFFFF'; // Zzz blanc
+            ctx.font = 'bold 18px Arial'; 
+            ctx.fillText('Zzz', zzzX, zzzY);
+            ctx.restore();
+        }
+    } else {
+        // Réinitialise l'animation Zzz quand ce n'est pas la nuit
+        zzzAnimationStartTime = 0;
     }
 }
 
 function draw() {
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
     drawSky();
+    drawClouds(); // Dessine les nuages après le ciel
     drawHeader();
     drawSunMoon();
     drawGround();
     drawBed();
     drawPerson();
 }
+
+// Initialise les nuages au démarrage
+initClouds();
 
 function animate() {
     if (currentState === states.transitioningToNight || currentState === states.transitioningToDay) {
@@ -233,6 +345,21 @@ function animate() {
             currentState = currentState === states.transitioningToNight ? states.night : states.day;
         }
     }
+
+    // Met à jour la position des nuages pour le défilement
+    for (const cloud of clouds) {
+        cloud.x -= cloudSpeed; // Déplace le nuage vers la gauche
+        // Si le nuage est complètement sorti de l'écran à gauche, le repositionne à droite
+        let cloudTotalWidth = 0;
+        for (const block of cloud.blocks) {
+            cloudTotalWidth = Math.max(cloudTotalWidth, (block.dx + block.w) * cloudPixelSize);
+        }
+        if (cloud.x + cloudTotalWidth < 0) {
+            cloud.x = canvasWidth + Math.random() * 200; // Repositionne à droite, avec une petite variation
+            cloud.y = 80 + Math.random() * 100; // Varie légèrement la hauteur
+        }
+    }
+
     draw();
     requestAnimationFrame(animate);
 }
